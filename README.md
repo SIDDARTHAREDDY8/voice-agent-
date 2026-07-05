@@ -1,0 +1,81 @@
+# PayerLine — a working miniature of VoiceAdmin's core loop
+
+I built this after studying VoiceAdmin because I wanted to *show* rather than tell.
+It's a small, runnable prototype of the hardest, most valuable part of an outbound
+payer-call product: **run the call, extract accurate structured benefits, catch the
+rep's mistakes, and hand the EHR clean data.**
+
+It runs entirely locally against a *simulated* payer (no real PHI, no live payer
+lines), which also means every call has a known ground truth — so accuracy is
+**measured, not claimed.**
+
+## What it does
+
+```
+┌─────────┐   phone-style turns   ┌──────────────┐
+│  Agent  │◄─────────────────────►│  Payer sim   │  (IVR gate → live rep "Dana",
+│ (RCM)   │                       │  + ground    │   knows the true benefits,
+└────┬────┘                       │  truth)      │   sometimes wrong on purpose)
+     │ transcript                 └──────────────┘
+     ▼
+  extract ──► EligibilityResult (Pydantic)
+     │
+     ├─► verify()  ── deterministic reliability checks (the "pushback" layer)
+     └─► to_fhir() ── EHR-ready CoverageEligibilityResponse write-back
+```
+
+- **`agent.py`** — the outbound agent. Authenticates through the IVR, works an
+  eligibility checklist one turn at a time, and is instructed to *push back* when
+  a rep's numbers are internally inconsistent.
+- **`payer_sim.py`** — a simulated payer (IVR + live rep) with a hidden true record.
+  Some scenarios make the rep terse or wrong to stress-test the agent.
+- **`verifier.py`** — deterministic checks (missing fields, deductible-met >
+  deductible, inactive coverage w/ copays, etc.). This is the part that keeps a
+  wrong copay from silently reaching billing — the reliability moat competitors
+  (e.g. Infinitus's real-time correction) sell hardest.
+- **`schema.py`** — structured output + a FHIR mapping, because the deliverable
+  isn't "the call happened," it's clean data the EHR ingests without re-keying.
+- **`triage.py`** — routes each finished call: **AUTO_POST** (confident + consistent
+  → straight to the EHR), **REVIEW** (a field is missing or low-confidence → a human
+  glances), or **REDO** (payer data inconsistent → re-verify). This is the lever that
+  lets a small team stand behind millions of calls — humans only touch what the system
+  is unsure about.
+- **`review_queue.py`** — runs every scenario and reports the **auto-post rate** (75%
+  in the current set) alongside field accuracy. The founder-facing scale story.
+- **`eval_run.py`** — accuracy harness: scores every extracted field vs. ground
+  truth across scenarios. How you'd catch a regression before it hits a payer.
+
+## Run it
+
+```bash
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY=sk-...        # any LLM works; swap the client in llm.py
+
+python run_demo.py 2     # runs the ADVERSARIAL scenario (rep misstates deductible)
+python eval_run.py       # full accuracy + verification report across scenarios
+```
+
+Watch scenario 2: the rep claims $2,000 of a $1,000 deductible is met. A naive
+agent records it; here the agent pushes back and the verifier flags the
+inconsistency.
+
+## Why this maps to VoiceAdmin specifically
+
+| VoiceAdmin does | This prototype demonstrates |
+|---|---|
+| Outbound payer calls (claim status / eligibility) | The eligibility call, end to end |
+| Structured data back to Epic/Cerner | `EligibilityResult` → FHIR write-back |
+| HIPAA / accuracy at scale | A verification layer + a measurable eval harness |
+
+## Honest limitations (what I'd build next, inside the company)
+
+- **Voice is stubbed as text turns.** The same loop drops onto a telephony stack
+  (Twilio/LiveKit/Vapi) with STT/TTS — `call.py` is the seam. I scoped this to the
+  reasoning + reliability layer on purpose; that's the hard part.
+- IVR navigation is simulated, not DTMF against real payer trees.
+- The eval set is 3 scenarios to keep it readable; the harness scales to hundreds.
+- Verification rules are hand-written; next step is learning them from labeled
+  call outcomes (the knowledge-graph direction).
+
+*Built as a conversation starter, not a product. Happy to walk through the design
+choices — or pair on the real telephony integration.*

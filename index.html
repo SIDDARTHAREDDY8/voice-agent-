@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PayerLine — live payer-call demo</title>
+<meta name="description" content="PayerLine — an AI voice agent that verifies eligibility with a payer, catches the rep's mistakes, and routes only the risky calls to a human.">
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;📞&lt;/text&gt;&lt;/svg&gt;">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  img, svg, video { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<style>
+  :root {
+    /* VoiceAdmin brand palette (pulled from voiceadmin.ai) */
+    --navy: #1E3A5F;
+    --navy-2: #2A4A6E;
+    --navy-deep: #1A3254;
+    --navy-darker: #234363;
+    --slate-ink: #24425f;
+    --slate: #4E6D8E;
+    --slate-2: #65809E;
+    --slate-3: #96A9BC;
+    --bg: #F8FAFC;
+    --bg-2: #FAFBFC;
+    --card: #FFFFFF;
+    --line: #DAE2EA;
+    --line-soft: #EDF1F5;
+    --sky: #64B4FF;
+    --teal: #2BB6A8;
+    --teal-ink: #1c8379;
+    --amber: #E7AB52;
+    --amber-ink: #b57e28;
+    --green: #28C840;
+    --green-ink: #1f9d38;
+    --red: #FF5F57;
+    --red-ink: #d64036;
+    /* dark terminal (their on-site console mock) */
+    --term-bg: #0D1117;
+    --term-bar: #161B22;
+    --term-line: #26313f;
+    --term-text: #E6EDF3;
+    --term-muted: #8b9bb0;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { overflow-x: hidden; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--slate-ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ---------- hero band (navy gradient, echoing voiceadmin.ai) ---------- */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(145deg, #2A4A6E 0%, #1E3A5F 25%, #234363 50%, #1E3A5F 75%, #1A3254 100%);
+    color: #fff;
+  }
+  .hero::before { /* sky glow, top-right */
+    content: "";
+    position: absolute;
+    top: -20%; right: -8%;
+    width: 640px; height: 640px;
+    background: radial-gradient(circle at center, rgba(100,180,255,0.22) 0%, transparent 58%);
+    pointer-events: none;
+  }
+  .hero::after { /* teal glow, lower-left */
+    content: "";
+    position: absolute;
+    bottom: -30%; left: -10%;
+    width: 520px; height: 520px;
+    background: radial-gradient(circle at center, rgba(80,200,190,0.16) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-grid { /* faint horizon grid */
+    position: absolute; inset: 0;
+    background-image: linear-gradient(0deg, transparent 79px, rgba(255,255,255,0.04) 80px);
+    background-size: 100% 80px;
+    mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+    pointer-events: none;
+  }
+  .hero-inner {
+    position: relative;
+    max-width: 940px;
+    margin: 0 auto;
+    padding: clamp(40px, 7vw, 88px) clamp(18px, 4vw, 40px) clamp(34px, 5vw, 60px);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #9fd0ff;
+    margin: 0 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: rgba(159,208,255,.5); }
+
+  h1 {
+    font-size: clamp(34px, 6.6vw, 62px);
+    line-height: 1.06;
+    letter-spacing: -0.028em;
+    margin: 0 0 20px;
+    font-weight: 400;               /* voiceadmin uses light hero weights */
+    text-wrap: balance;
+    color: #fff;
+  }
+  h1 .accent {
+    background: linear-gradient(90deg, #8fd0ff, #63e0d0);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+
+  .lede {
+    font-size: clamp(16px, 2.4vw, 20px);
+    color: rgba(230,237,243,.82);
+    font-weight: 300;
+    max-width: 60ch;
+    margin: 0;
+  }
+  .lede strong { color: #fff; font-weight: 500; }
+
+  /* ---------- body wrap ---------- */
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 0 clamp(18px, 4vw, 40px) 72px;
+  }
+
+  /* stat tiles overlap the hero edge */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: -32px;
+    position: relative; z-index: 2;
+  }
+  @media (max-width: 620px) { .stats { grid-template-columns: 1fr; margin-top: -20px; } }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 12px 30px -18px rgba(30,58,95,0.35);
+  }
+  .stat .n {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--navy);
+    display: block; line-height: 1;
+  }
+  .stat.good .n { color: var(--green-ink); }
+  .stat.catch .n { color: var(--amber-ink); }
+  .stat .l { font-size: 13px; color: var(--slate); margin-top: 8px; display: block; }
+
+  section { margin-top: 50px; }
+
+  .sec-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0; color: var(--navy); }
+  .sec-head .tag { font-family: var(--mono); font-size: 12px; color: var(--slate-2); letter-spacing: 0.03em; }
+
+  /* ---------- call console: dark terminal window, their on-site style ---------- */
+  .call {
+    background: var(--term-bg);
+    border: 1px solid #0a0f16;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px -30px rgba(20,35,58,0.55);
+  }
+  .call-bar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px;
+    background: var(--term-bar);
+    border-bottom: 1px solid var(--term-line);
+    flex-wrap: wrap;
+  }
+  .lights { display: inline-flex; gap: 8px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .lights .r { background: #FF5F57; }
+  .lights .y { background: #FEBC2E; }
+  .lights .g { background: #28C840; }
+  .live {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--term-muted);
+  }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: #46566a; }
+  .live.on .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .party { color: var(--term-muted); font-size: 12.5px; }
+  .party b { color: var(--term-text); font-weight: 600; }
+  .timer { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--term-muted); margin-left: auto; }
+  .btn {
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    color: #06231f; background: var(--teal); border: 0; border-radius: 8px;
+    padding: 8px 15px; cursor: pointer;
+    transition: background .15s ease, transform .05s ease;
+  }
+  .btn:hover { background: #35cebe; }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .thread {
+    padding: 20px clamp(14px, 3vw, 26px);
+    display: flex; flex-direction: column; gap: 14px;
+    max-height: 380px; overflow-y: auto; scroll-behavior: smooth;
+  }
+  .thread::-webkit-scrollbar { width: 10px; }
+  .thread::-webkit-scrollbar-thumb { background: #2a3746; border-radius: 6px; border: 2px solid var(--term-bg); }
+  .thread::-webkit-scrollbar-track { background: transparent; }
+  .thread.idle { max-height: none; overflow: visible; }
+  .thread.idle .turn { display: none; }        /* collapsed until Play */
+  .thread-hint {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 30px 20px; text-align: center;
+    font-family: var(--mono); font-size: 13px; color: var(--term-muted);
+  }
+  .thread-hint b { color: #cfe6ff; font-weight: 600; }
+  .turn { display: flex; flex-direction: column; max-width: 82%; }
+  .turn .who { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5f7189; margin-bottom: 5px; }
+  .bubble { padding: 11px 15px; border-radius: 13px; font-size: 14.5px; border: 1px solid var(--term-line); color: var(--term-text); }
+
+  .agent { align-self: flex-start; }
+  .agent .who { color: #63e0d0; }
+  .agent .bubble { background: #10222f; border-color: #1d3b45; border-top-left-radius: 4px; }
+  .payer { align-self: flex-end; align-items: flex-end; }
+  .payer .who { color: #8fb4d8; }
+  .payer .bubble { background: #182430; border-top-right-radius: 4px; }
+
+  .flag .bubble { border-left-width: 3px; }
+  .bad .bubble { border-color: var(--red); border-left-color: var(--red); background: #2c1a1c; }
+  .catch .bubble { border-color: var(--amber); border-left-color: var(--amber); background: #2b2617; }
+  .fix .bubble { border-color: var(--green); border-left-color: var(--green); background: #14281c; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.03em;
+    margin-top: 7px; padding: 3px 9px; border-radius: 999px;
+  }
+  .bad .chip { color: #ff8a83; background: rgba(255,95,87,.13); }
+  .catch .chip { color: var(--amber); background: rgba(231,171,82,.13); }
+  .fix .chip { color: #63d97e; background: rgba(40,200,64,.13); }
+
+  .staged .turn { opacity: 0; transform: translateY(8px); }
+  .staged .turn.shown { opacity: 1; transform: none; transition: opacity .4s ease, transform .4s ease; }
+  @media (prefers-reduced-motion: reduce) { .staged .turn { opacity: 1; transform: none; transition: none; } }
+
+  /* ---------- output cards (light) ---------- */
+  .grid2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .card h3 { font-size: 13px; font-family: var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--slate); margin: 0 0 14px; font-weight: 500; }
+
+  /* json block sits in a mini dark terminal to match the console */
+  .json {
+    background: var(--term-bg); border: 1px solid var(--term-line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto;
+  }
+  pre { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: #b9cadb; font-variant-numeric: tabular-nums; }
+  pre .k { color: #7fc4e6; }
+  pre .s { color: #cdd8b0; }
+  pre .hl { color: #63d97e; font-weight: 600; }
+  pre .note { color: #6f8296; }
+
+  .verdict {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border-radius: 12px;
+    background: #eefaf1; border: 1px solid #c3eccd; margin-bottom: 14px;
+  }
+  .verdict .mark { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--green-ink); color: #fff; font-weight: 800; font-size: 16px; }
+  .verdict .t { font-size: 14px; color: var(--slate-ink); }
+  .verdict .t b { color: var(--green-ink); }
+  .verdict .t span { color: var(--slate); display: block; font-size: 12.5px; }
+
+  .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .checklist li { display: flex; gap: 10px; font-size: 13.5px; color: var(--slate); align-items: flex-start; }
+  .checklist li::before { content: "✓"; color: var(--teal-ink); font-weight: 700; }
+  .checklist code { font-family: var(--mono); font-size: 12px; color: var(--navy); }
+
+  /* ---------- eval table ---------- */
+  .evalwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; }
+  th, td { text-align: left; padding: 13px 18px; font-size: 13.5px; }
+  thead th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--slate-2); font-weight: 500; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+  tbody tr { border-bottom: 1px solid var(--line-soft); background: var(--card); }
+  tbody tr:last-child { border-bottom: 0; }
+  td .name { color: var(--navy); font-weight: 600; }
+  td .sub { color: var(--slate-2); font-size: 12px; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--slate-ink); }
+  .pct { color: var(--green-ink); font-weight: 600; }
+  .flagcell { font-family: var(--mono); font-size: 12px; }
+  .flagcell.amber { color: var(--amber-ink); }
+  .flagcell.zero { color: var(--slate-3); }
+  tfoot td { background: var(--bg-2); font-weight: 600; border-top: 1px solid var(--line); color: var(--navy); }
+  tfoot .pct { font-family: var(--mono); font-size: 15px; }
+
+  /* ---------- triage / review queue ---------- */
+  .queue { display: flex; flex-direction: column; gap: 10px; }
+  .qrow {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px;
+    border-left: 3px solid var(--line);
+  }
+  .qrow.auto { border-left-color: var(--green); }
+  .qrow.review { border-left-color: var(--amber); }
+  .qrow .qbody { flex: 1; min-width: 0; }
+  .qrow .qname { font-weight: 600; color: var(--navy); font-size: 14.5px; }
+  .qrow .qreason { color: var(--slate-2); font-size: 12.5px; margin-top: 2px; }
+  .qrow .qreason code { font-family: var(--mono); color: var(--amber-ink); }
+  .pill {
+    flex: none; font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.03em; padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.auto { color: var(--green-ink); background: #e7f8ec; border: 1px solid #bfe9ca; }
+  .pill.review { color: var(--amber-ink); background: #fbf1dc; border: 1px solid #efd9a8; }
+
+  .econ {
+    margin-top: 16px;
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 22px 24px; border-radius: 14px; color: #fff;
+    background: linear-gradient(135deg, #234363 0%, #1E3A5F 55%, #1A3254 100%);
+    position: relative; overflow: hidden;
+  }
+  .econ::after {
+    content: ""; position: absolute; top: -40%; right: -6%;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle at center, rgba(80,200,190,0.22) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .econ .big { font-family: var(--mono); font-size: 46px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: #7ef0df; }
+  .econ .cap { font-size: 14px; color: rgba(230,237,243,.9); max-width: 52ch; position: relative; }
+  .econ .cap b { color: #fff; }
+
+  /* ---------- run block (dark terminal) ---------- */
+  .run { background: var(--term-bg); border: 1px solid var(--term-line); border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 13px; overflow-x: auto; }
+  .run .c { color: #5f7189; }
+  .run .p { color: var(--teal); user-select: none; }
+  .run .cmd { color: var(--term-text); }
+  .run div { white-space: pre; padding: 2px 0; }
+
+  .limits { color: var(--slate); font-size: 13.5px; max-width: 64ch; }
+  .limits b { color: var(--navy); }
+  .limits code { font-family: var(--mono); font-size: 12px; color: var(--teal-ink); }
+
+  .foot { margin-top: 54px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--slate-2); font-size: 13px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .foot b { color: var(--slate); font-weight: 600; }
+</style>
+
+<header class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <p class="eyebrow">RCM voice agent · working prototype</p>
+    <h1>PayerLine calls the insurer<br><span class="accent">and catches its mistakes.</span></h1>
+    <p class="lede">A miniature of VoiceAdmin's core loop: an agent phones a payer, verifies eligibility, and returns <strong>clean, EHR-ready data</strong> — with a reliability layer that flags a rep's bad numbers <strong>before they reach billing</strong>, then routes only the risky calls to a human. Every call below is generated live and scored against a known ground truth.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="stats">
+    <div class="stat good"><span class="n">26/26</span><span class="l">benefit fields extracted correctly across 4 live calls</span></div>
+    <div class="stat good"><span class="n">75%</span><span class="l">of calls auto-post with zero human review needed</span></div>
+    <div class="stat catch"><span class="n">1</span><span class="l">payer error caught &amp; corrected mid-call</span></div>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <h2>A live call</h2>
+      <span class="tag">scenario: rep misstates the deductible</span>
+    </div>
+
+    <div class="call">
+      <div class="call-bar">
+        <span class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>
+        <span class="live" id="live"><span class="dot"></span><span id="livetext">Ready</span></span>
+        <span class="party">Riverside Family Medicine <b>→</b> UnitedHealthcare</span>
+        <span class="timer" id="timer">00:00</span>
+        <button class="btn" id="play" type="button">▶ Play call</button>
+      </div>
+      <div class="thread staged idle" id="thread"><!-- turns injected --></div>
+      <div class="thread-hint" id="hint">▶&nbsp; Press <b>&nbsp;Play call&nbsp;</b> to run the live verification</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>What billing receives</h2>
+      <span class="tag">structured out → verified → FHIR</span>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>EligibilityResult (EHR-ready)</h3>
+        <div class="json"><pre><span class="k">"coverage_active"</span>: <span class="s">true</span>,
+<span class="k">"plan_type"</span>: <span class="s">"PPO"</span>,
+<span class="k">"copay_specialist"</span>: <span class="s">60</span>,
+<span class="k">"deductible_individual"</span>: <span class="s">1000</span>,
+<span class="k">"deductible_met"</span>: <span class="hl">400</span>,   <span class="note">← corrected, not 2000</span>
+<span class="k">"oop_max_individual"</span>: <span class="s">5000</span>,
+<span class="k">"oop_met"</span>: <span class="s">900</span>,
+<span class="k">"coinsurance_pct"</span>: <span class="s">20</span>,
+<span class="k">"prior_auth_required"</span>: <span class="s">false</span>,
+<span class="k">"reference_number"</span>: <span class="s">"7712-UH"</span>,
+<span class="k">"notes"</span>: <span class="note">"Payer initially misstated
+  deductible met as $2,000; corrected
+  to $400 on agent's push-back."</span></pre></div>
+      </div>
+      <div class="card">
+        <h3>Verification layer</h3>
+        <div class="verdict">
+          <div class="mark">✓</div>
+          <div class="t"><b>PASS</b> — all required fields captured &amp; internally consistent
+            <span>The same check fires ⚠ if deductible-met &gt; deductible.</span>
+          </div>
+        </div>
+        <ul class="checklist">
+          <li>Active coverage, plan type &amp; effective date confirmed</li>
+          <li>Deductible-met ≤ deductible (the trap that was caught)</li>
+          <li>Out-of-pocket met ≤ out-of-pocket max</li>
+          <li>Call reference number captured for appeals</li>
+          <li>Result mapped to FHIR <code>CoverageEligibilityResponse</code></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Which calls need a human?</h2>
+      <span class="tag">python review_queue.py</span>
+    </div>
+    <p class="limits" style="margin-bottom:18px">
+      You can't review millions of calls a year — and you can't blindly auto-post data that might be wrong.
+      So every finished call is scored per-field and <b>routed</b>: auto-post when it's confident and consistent,
+      human review when it isn't. Humans only touch the fraction the system is unsure about.
+    </p>
+    <div class="queue">
+      <div class="qrow auto">
+        <div class="qbody">
+          <div class="qname">Clean PPO · cooperative rep</div>
+          <div class="qreason">all required fields confirmed with high confidence</div>
+        </div>
+        <span class="pill auto">✓ auto-post</span>
+      </div>
+      <div class="qrow auto">
+        <div class="qbody">
+          <div class="qname">HMO · terse rep, had to probe</div>
+          <div class="qreason">captured every field despite a rep who only answered the exact question</div>
+        </div>
+        <span class="pill auto">✓ auto-post</span>
+      </div>
+      <div class="qrow auto">
+        <div class="qbody">
+          <div class="qname">Adversarial · rep misstates deductible</div>
+          <div class="qreason">agent caught &amp; corrected the bad number live — so it posts clean instead of hitting the queue</div>
+        </div>
+        <span class="pill auto">✓ auto-post</span>
+      </div>
+      <div class="qrow review">
+        <div class="qbody">
+          <div class="qname">Portal-only · Cigna rep can't confirm OOP max</div>
+          <div class="qreason">out-of-pocket max never stated — <code>confidence 0%</code>, flagged for a human instead of guessed</div>
+        </div>
+        <span class="pill review">⚑ human review</span>
+      </div>
+    </div>
+    <div class="econ">
+      <div class="big">75%</div>
+      <div class="cap"><b>3 of 4 calls auto-post</b> — zero human attention. A team reviews only the 25% the
+        system flags. That's the lever that lets a handful of people stand behind millions of calls without
+        scaling headcount linearly.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Scored against ground truth</h2>
+      <span class="tag">python eval_run.py</span>
+    </div>
+    <div class="evalwrap">
+      <table>
+        <thead>
+          <tr><th>Scenario</th><th style="text-align:right">Fields</th><th style="text-align:right">Accuracy</th><th>Flags raised</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="name">Clean PPO</span><br><span class="sub">cooperative rep</span></td>
+            <td class="num">8 / 8</td><td class="num pct">100%</td>
+            <td class="flagcell zero">0 · none needed</td>
+          </tr>
+          <tr>
+            <td><span class="name">HMO</span><br><span class="sub">terse rep — must probe</span></td>
+            <td class="num">7 / 7</td><td class="num pct">100%</td>
+            <td class="flagcell zero">0 · none needed</td>
+          </tr>
+          <tr>
+            <td><span class="name">Adversarial</span><br><span class="sub">rep misstates deductible</span></td>
+            <td class="num">5 / 5</td><td class="num pct">100%</td>
+            <td class="flagcell amber">caught on the call ✓</td>
+          </tr>
+          <tr>
+            <td><span class="name">Portal-only</span><br><span class="sub">rep can't confirm OOP max</span></td>
+            <td class="num">6 / 6</td><td class="num pct">100%</td>
+            <td class="flagcell amber">routed to review ⚑</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Overall field accuracy</td><td class="num">26 / 26</td><td class="num pct">100%</td><td class="flagcell zero">—</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Run it yourself</h2>
+      <span class="tag">~/voiceadmin-payerline-demo</span>
+    </div>
+    <div class="run">
+      <div><span class="c"># the live call above — real agent ↔ simulated payer</span></div>
+      <div><span class="p">$</span> <span class="cmd">python run_demo.py 2</span></div>
+      <div><span class="c"># the triage / human-review queue with auto-post rate</span></div>
+      <div><span class="p">$</span> <span class="cmd">python review_queue.py</span></div>
+      <div><span class="c"># accuracy scored across every scenario</span></div>
+      <div><span class="p">$</span> <span class="cmd">python eval_run.py</span></div>
+      <div><span class="c"># no API key? see the pipeline offline</span></div>
+      <div><span class="p">$</span> <span class="cmd">python demo_offline.py</span></div>
+    </div>
+    <p class="limits" style="margin-top:20px">
+      <b>Honestly scoped:</b> voice is modeled as text turns — the same loop drops onto a
+      telephony stack (Twilio / LiveKit) with STT+TTS; <code>call.py</code> is the seam.
+      The payer is simulated so accuracy is measurable, and the verification rules are hand-written
+      today — the next step is learning them from labeled call outcomes. I scoped this to the
+      reasoning + reliability layer on purpose: that's the hard part.
+    </p>
+  </section>
+
+  <div class="foot">
+    <span><b>PayerLine</b> — built as a conversation starter, not a product.</span>
+    <span>Agent: Claude Sonnet · Payer sim: Claude Haiku · Python + Pydantic</span>
+  </div>
+</div>
+
+<script>
+  const turns = [
+    {who:"agent", label:"Agent", text:"Hi, thanks for taking my call. This is Riverside Family Medicine, NPI 1548291057. I'm verifying eligibility for a patient — can I get a call reference number?"},
+    {who:"payer", label:"UHC · IVR", text:"Thank you for calling UnitedHealthcare. Before I connect you: the patient's member ID, date of birth, and can you confirm your NPI?"},
+    {who:"agent", label:"Agent", text:"Member ID ZK884120931, DOB 03/12/1984, and yes — NPI 1548291057, Riverside Family Medicine."},
+    {who:"payer", label:"UHC · Dana", text:"Connecting you now… Hi, this is Dana. Your reference number is 7712-UH. How can I help?"},
+    {who:"agent", label:"Agent", text:"I'm verifying benefits for a specialist visit. Is coverage active today, and what plan type?"},
+    {who:"payer", label:"UHC · Dana", text:"Yes, active. It's UHC Choice Plus — a PPO plan, effective January 1st, 2026."},
+    {who:"agent", label:"Agent", text:"Great. And the specialist and PCP copays, plus the individual deductible and how much has been met?"},
+    {who:"payer", label:"UHC · Dana", text:"PCP is $30, specialist $60. The individual deductible is $1,000 — and we show $2,000 has been applied to it.", tone:"bad", chip:"⚑ inconsistent: $2,000 met > $1,000 deductible"},
+    {who:"agent", label:"Agent", text:"I'm sorry — that doesn't add up. The deductible is $1,000, but $2,000 met would exceed it. Could you double-check the amount met?", tone:"catch", chip:"⟳ agent pushes back"},
+    {who:"payer", label:"UHC · Dana", text:"You're absolutely right, I apologize — let me re-read. $400 of the $1,000 has been met.", tone:"fix", chip:"✓ corrected to $400"},
+    {who:"agent", label:"Agent", text:"Thank you. Out-of-pocket max and how much applied? And is prior auth required for the visit?"},
+    {who:"payer", label:"UHC · Dana", text:"OOP max is $5,000, with $900 applied. Coinsurance is 20%, and no prior auth is required for this visit."},
+    {who:"agent", label:"Agent", text:"Perfect — that's everything I needed. Reference 7712-UH. Thanks so much, Dana."}
+  ];
+
+  const thread = document.getElementById("thread");
+  const playBtn = document.getElementById("play");
+  const live = document.getElementById("live");
+  const liveText = document.getElementById("livetext");
+  const timerEl = document.getElementById("timer");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function build() {
+    thread.innerHTML = "";
+    turns.forEach(t => {
+      const wrap = document.createElement("div");
+      wrap.className = "turn " + t.who + (t.tone ? " flag " + t.tone : "");
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = t.label;
+      const b = document.createElement("div");
+      b.className = "bubble";
+      b.textContent = t.text;
+      wrap.appendChild(who);
+      wrap.appendChild(b);
+      if (t.chip) {
+        const c = document.createElement("div");
+        c.className = "chip";
+        c.textContent = t.chip;
+        wrap.appendChild(c);
+      }
+      thread.appendChild(wrap);
+    });
+  }
+  build();
+
+  let timer = null, seconds = 0;
+  function fmt(s){ return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+
+  const hint = document.getElementById("hint");
+
+  function play() {
+    thread.classList.remove("idle");   // expand the terminal
+    hint.style.display = "none";
+    const nodes = [...thread.querySelectorAll(".turn")];
+    nodes.forEach(n => n.classList.remove("shown"));
+    playBtn.disabled = true;
+    live.classList.add("on");
+    liveText.textContent = "On call";
+    seconds = 0; timerEl.textContent = "00:00";
+    clearInterval(timer);
+    timer = setInterval(() => { seconds++; timerEl.textContent = fmt(seconds); }, 1000);
+
+    let i = 0;
+    const step = () => {
+      if (i >= nodes.length) {
+        clearInterval(timer);
+        live.classList.remove("on");
+        liveText.textContent = "Call ended";
+        playBtn.disabled = false;
+        playBtn.textContent = "↻ Replay";
+        return;
+      }
+      nodes[i].classList.add("shown");
+      nodes[i].scrollIntoView({behavior: reduce ? "auto" : "smooth", block: "nearest"});
+      const delay = nodes[i].classList.contains("flag") ? 1500 : 950;
+      i++;
+      setTimeout(step, delay);
+    };
+    step();
+  }
+
+  if (reduce) {
+    thread.classList.remove("staged", "idle");   // show the full transcript, no motion
+    hint.style.display = "none";
+    playBtn.style.display = "none";
+  } else {
+    playBtn.addEventListener("click", play);
+  }
+
+  // The artifact is embedded in an auto-resizing iframe; on load it can
+  // under-measure this page's height, so nothing scrolls until an interaction
+  // forces a re-measure. Force those re-measures ourselves, right after load.
+  function nudgeHeight() {
+    const h = document.documentElement.scrollHeight;
+    document.documentElement.style.minHeight = (h + 1) + "px";
+    requestAnimationFrame(() => { document.documentElement.style.minHeight = ""; });
+    window.dispatchEvent(new Event("resize"));
+  }
+  nudgeHeight();
+  window.addEventListener("load", () => [0, 150, 450, 1000].forEach(t => setTimeout(nudgeHeight, t)));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(nudgeHeight);
+</script>
+
+</body>
+</html>
