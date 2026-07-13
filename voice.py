@@ -53,6 +53,15 @@ ELEVEN_VOICES = {
 ELEVEN_MODEL = "eleven_multilingual_v2"
 ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_22050"
 
+# Piper — self-hosted neural TTS: free, offline, no key, no quota. This is what
+# powers the live button on the deployed Space so it works on every click.
+# Models are the shared piper-voices (medium = 22.05 kHz, matching _RATE).
+PIPER_VOICES = {
+    "agent": "en_US-ryan-medium",     # the RCM caller (male)
+    "payer": "en_US-amy-medium",      # Dana, the payer rep (female)
+}
+_piper_cache: dict = {}
+
 
 def _env(key: str, default: str = "") -> str:
     """os.environ first, then a bare read of .env (so we don't import llm/anthropic)."""
@@ -72,15 +81,28 @@ def _api_key() -> str:
     return _env("ELEVENLABS_API_KEY") or _env("ELEVEN_API_KEY")
 
 
+def _piper_available() -> bool:
+    try:
+        import piper  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 def resolve_engine(requested: str = "auto") -> str:
-    """'eleven' if a key is available (and not overridden), else 'say'."""
+    """Pick a TTS engine. 'piper' is free/offline (the Space's live engine);
+    'eleven' needs a key; 'say' is the macOS offline fallback."""
     if requested == "say":
         return "say"
-    if _api_key():
+    if requested == "piper":
+        if _piper_available():
+            return "piper"
+        return "eleven" if _api_key() else "say"
+    if requested in ("eleven", "auto") and _api_key():
         return "eleven"
     if requested == "eleven":
         sys.exit("No ELEVENLABS_API_KEY found. Add it to .env (see .env.example), "
-                 "or use --engine say for the offline voice.")
+                 "or use --engine say / --engine piper.")
     return "say"
 
 
@@ -139,6 +161,28 @@ def _eleven_pcm(text: str, speaker: str, api_key: str) -> bytes:
         raise RuntimeError(f"ElevenLabs {e.code}: {detail}") from None
 
 
+def _piper_voice(speaker: str):
+    """Lazy-load (and cache) a Piper voice, downloading the model on first use."""
+    name = _env(f"PIPER_VOICE_{speaker.upper()}") or PIPER_VOICES.get(speaker, PIPER_VOICES["agent"])
+    if name not in _piper_cache:
+        from huggingface_hub import hf_hub_download
+        from piper import PiperVoice
+        lang = name.split("-")[0]                       # e.g. en_US-amy-medium -> en_US
+        quality = name.rsplit("-", 1)[-1]               # -> medium
+        voice = name.split("-")[1]                      # -> amy
+        base = f"{lang[:2]}/{lang}/{voice}/{quality}/{name}"
+        onnx = hf_hub_download("rhasspy/piper-voices", base + ".onnx")
+        hf_hub_download("rhasspy/piper-voices", base + ".onnx.json")
+        _piper_cache[name] = PiperVoice.load(onnx)
+    return _piper_cache[name]
+
+
+def _piper_clip(text: str, speaker: str, path: Path) -> None:
+    voice = _piper_voice(speaker)
+    with wave.open(str(path), "wb") as wf:              # piper writes 22.05 kHz 16-bit mono
+        voice.synthesize_wav(_clean_for_speech(text), wf)
+
+
 def _write_wav(path: Path, pcm: bytes) -> None:
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
@@ -150,6 +194,8 @@ def _write_wav(path: Path, pcm: bytes) -> None:
 def synth_clip(text: str, speaker: str, path: Path, engine: str, api_key: str = "") -> None:
     if engine == "eleven":
         _write_wav(path, _eleven_pcm(text, speaker, api_key))
+    elif engine == "piper":
+        _piper_clip(text, speaker, path)
     else:
         _say_clip(text, speaker, path)
 

@@ -144,11 +144,10 @@ def load_canned():
 
 
 def run_live(scenario_idx):
-    keys = os.environ.get("ANTHROPIC_API_KEY") and (
-        os.environ.get("ELEVENLABS_API_KEY") or os.environ.get("ELEVEN_API_KEY"))
-    if not keys:
-        raise gr.Error("Live runs need ANTHROPIC_API_KEY and ELEVENLABS_API_KEY "
-                       "set as Space secrets. The pre-recorded call above is real.")
+    # Voice is self-hosted (Piper) — no TTS key needed; only the LLM key.
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise gr.Error("Live runs need ANTHROPIC_API_KEY set as a Space secret. "
+                       "The pre-recorded call above is a real run.")
     today = str(date.today())
     if _runs.get(today, 0) >= MAX_LIVE:
         raise gr.Error(f"Daily live-run cap reached ({MAX_LIVE}). The pre-recorded "
@@ -163,18 +162,14 @@ def run_live(scenario_idx):
         _runs[today] -= 1                       # a failed run shouldn't burn the cap
         raise gr.Error(f"Live call failed — {type(e).__name__}: {e}")
 
-    # 2) Voice, but degrade gracefully — if the ElevenLabs quota is out, still show
-    #    the call as text rather than erroring. Serve from Gradio's temp dir.
+    # 2) Voice via self-hosted Piper (free, no quota). Degrade to text on any
+    #    failure rather than erroring. Serve from Gradio's temp dir.
     audio_out = str(Path(tempfile.gettempdir()) / "payerline_live.wav")
     audio_path, note = None, ""
     try:
-        audio_path = str(voice.render(b["transcript"], audio_out, engine="eleven"))
-    except Exception as e:
-        if "quota" in str(e).lower():
-            note = ("  ·  🔇 ElevenLabs voice quota is used up this month — showing "
-                    "the fresh call as text. The pre-recorded call above has real audio.")
-        else:
-            raise gr.Error(f"Voice render failed — {type(e).__name__}: {e}")
+        audio_path = str(voice.render(b["transcript"], audio_out, engine="piper"))
+    except Exception:
+        note = "  ·  🔇 voice engine warming up — showing the fresh call as text."
 
     left = MAX_LIVE - _runs[today]
     out = list(_render_bundle(b, audio_path))
