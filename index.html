@@ -136,6 +136,20 @@
   }
   .lede strong { color: #fff; font-weight: 500; }
 
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    padding: 12px 22px; border-radius: 10px;
+    transition: transform .05s ease, filter .15s ease, background .15s ease;
+  }
+  .cta:active { transform: translateY(1px); }
+  .cta:focus-visible { outline: 2px solid var(--sky); outline-offset: 3px; }
+  .cta-primary { background: linear-gradient(90deg, #8fd0ff, #63e0d0); color: #06231f; }
+  .cta-primary:hover { filter: brightness(1.06); }
+  .cta-ghost { color: #cfe6ff; border: 1px solid rgba(159,208,255,.42); }
+  .cta-ghost:hover { background: rgba(159,208,255,.1); }
+
   /* ---------- body wrap ---------- */
   .wrap {
     max-width: 940px;
@@ -375,7 +389,11 @@
   <div class="hero-inner">
     <p class="eyebrow">RCM voice agent · working prototype</p>
     <h1>PayerLine calls the insurer<br><span class="accent">and catches its mistakes.</span></h1>
-    <p class="lede">A miniature of VoiceAdmin's core loop: an agent phones a payer, verifies eligibility, and returns <strong>clean, EHR-ready data</strong> — with a reliability layer that flags a rep's bad numbers <strong>before they reach billing</strong>, then routes only the risky calls to a human. Every call below is generated live and scored against a known ground truth.</p>
+    <p class="lede">A miniature of VoiceAdmin's core loop: an agent phones a payer, verifies eligibility, and returns <strong>clean, EHR-ready data</strong> — with a reliability layer that flags a rep's bad numbers <strong>before they reach billing</strong>, then routes only the risky calls to a human. Every call is generated live and scored against a known ground truth.</p>
+    <div class="cta-row">
+      <a class="cta cta-primary" href="https://siddarthareddy8-payerline.hf.space" target="_blank" rel="noopener">▶ Try it live — real voices</a>
+      <a class="cta cta-ghost" href="https://github.com/SIDDARTHAREDDY8/PayerLine_Agent" target="_blank" rel="noopener">View the code</a>
+    </div>
   </div>
 </header>
 
@@ -550,11 +568,12 @@
       <div><span class="p">$</span> <span class="cmd">python demo_offline.py</span></div>
     </div>
     <p class="limits" style="margin-top:20px">
-      <b>Honestly scoped:</b> voice is modeled as text turns — the same loop drops onto a
-      telephony stack (Twilio / LiveKit) with STT+TTS; <code>call.py</code> is the seam.
-      The payer is simulated so accuracy is measurable, and the verification rules are hand-written
-      today — the next step is learning them from labeled call outcomes. I scoped this to the
-      reasoning + reliability layer on purpose: that's the hard part.
+      <b>Honestly scoped:</b> the agent speaks in real voices in the
+      <a href="https://siddarthareddy8-payerline.hf.space" style="color:var(--teal-ink)">live demo</a>;
+      what's still stubbed is telephony — the same loop drops onto Twilio / LiveKit with STT, and
+      <code>call.py</code> is the seam. The payer is simulated so accuracy is measurable, and the
+      verification rules are hand-written today — the next step is learning them from labeled call
+      outcomes. I scoped this to the reasoning + reliability layer on purpose: that's the hard part.
     </p>
   </section>
 
