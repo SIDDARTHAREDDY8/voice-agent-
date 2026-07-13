@@ -45,7 +45,8 @@ lines), which also means every call has a known ground truth — so accuracy is
 - **`eval_run.py`** — accuracy harness: scores every extracted field vs. ground
   truth across scenarios. How you'd catch a regression before it hits a payer.
 - **`voice.py`** — the voice layer: speaks each turn with a distinct voice and
-  renders a call to MP3. Offline, no API key, no account (macOS `say` + ffmpeg).
+  renders a call to a WAV. Offline, stdlib only — no API key, no account, no pip
+  install (macOS `say`; `-o call.mp3` compresses if you have ffmpeg).
 
 ## Run it
 
@@ -65,7 +66,7 @@ export ANTHROPIC_API_KEY=sk-...        # any LLM works; swap the client in llm.p
 
 python run_demo.py 2            # runs the ADVERSARIAL scenario (rep misstates deductible)
 python run_demo.py 2 --speak    # ...and hear it, live, turn by turn
-python run_demo.py 2 --render   # ...and save it to call.mp3
+python run_demo.py 2 --render   # ...and save it to call.wav
 python eval_run.py              # full accuracy + verification report across scenarios
 python review_queue.py          # per-call triage routes + the auto-post rate
 ```
