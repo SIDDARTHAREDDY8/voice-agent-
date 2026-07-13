@@ -44,9 +44,10 @@ lines), which also means every call has a known ground truth — so accuracy is
   in the current set) alongside field accuracy. The founder-facing scale story.
 - **`eval_run.py`** — accuracy harness: scores every extracted field vs. ground
   truth across scenarios. How you'd catch a regression before it hits a payer.
-- **`voice.py`** — the voice layer: speaks each turn with a distinct voice and
-  renders a call to a WAV. Offline, stdlib only — no API key, no account, no pip
-  install (macOS `say`; `-o call.mp3` compresses if you have ffmpeg).
+- **`voice.py`** — the voice layer. Generates a **fresh call each run** and
+  renders it to audio with real, human-sounding voices (ElevenLabs, one voice per
+  speaker) — or the offline macOS `say` voice when no key is set. Audio is
+  stitched from PCM via stdlib `wave`, so no ffmpeg is required.
 
 ## Run it
 
@@ -55,8 +56,16 @@ run against a scripted adversarial call:
 
 ```bash
 pip install -r requirements.txt
-python demo_offline.py   # no key needed — shows the naive vs. corrected record
-python voice.py --play   # no key needed — hear that same call, spoken aloud
+python demo_offline.py       # no key needed — shows the naive vs. corrected record
+python voice.py --scripted   # no key needed — hear the scripted call (offline `say`)
+```
+
+For **real, human-sounding voices** and a **fresh call each run**, add
+`ELEVENLABS_API_KEY` (and `ANTHROPIC_API_KEY`) to `.env` — see `.env.example` —
+then:
+
+```bash
+python voice.py              # generates a new call, speaks it with real voices
 ```
 
 The full loop (live agent ↔ simulated payer ↔ LLM extraction) needs a key:
