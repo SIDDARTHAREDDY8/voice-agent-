@@ -26,6 +26,7 @@ makes the loop hearable; the telephony seam stays `call.py`.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,11 +43,12 @@ _GAP_SECONDS = 0.35                 # a beat between turns so it isn't a run-on
 # `say` voices (offline fallback). Two clearly different so you can tell speakers apart.
 SAY_VOICES = {"agent": "Samantha", "payer": "Tessa"}
 
-# ElevenLabs voice IDs — shared default library voices every account has.
+# ElevenLabs voice IDs. These two "premade" voices work on the free API tier —
+# most "library" voices (Aria, Rachel, …) return 402 unless you upgrade.
 # Override per speaker with ELEVEN_VOICE_AGENT / ELEVEN_VOICE_PAYER.
 ELEVEN_VOICES = {
-    "agent": "EXAVITQu4vr4xnSDxMaL",   # Sarah  — the RCM caller
-    "payer": "9BWtsMINqrJLrRacOk9x",   # Aria   — Dana, the payer rep
+    "agent": "ErXwobaYiN019PkySvjV",   # Antoni — the RCM caller
+    "payer": "EXAVITQu4vr4xnSDxMaL",   # Sarah  — Dana, the payer rep
 }
 ELEVEN_MODEL = "eleven_multilingual_v2"
 ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_22050"
@@ -88,6 +90,16 @@ def _require(*tools: str) -> None:
         sys.exit(f"missing {', '.join(missing)} — this is a macOS demo (needs `say`).")
 
 
+def _clean_for_speech(text: str) -> str:
+    """Strip markdown so TTS reads words, not symbols — the sim sometimes emits
+    **bold**, `code`, and '- ' bullet lists that otherwise get voiced literally."""
+    text = re.sub(r"[*_`#]+", "", text)                 # bold/italic/code/heading marks
+    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.M)  # leading list bullets
+    text = re.sub(r"[ \t]+", " ", text)                 # collapse runs of spaces
+    text = re.sub(r"\n{2,}", ". ", text).replace("\n", ", ")  # newlines → spoken pauses
+    return text.strip()
+
+
 def _normalize(transcript) -> list[tuple[str, str]]:
     """Accept run_call's [{'speaker','text'}] or the scripted [(SPEAKER, text)]."""
     turns = []
@@ -102,14 +114,14 @@ def _normalize(transcript) -> list[tuple[str, str]]:
 # ── per-turn synthesis: every engine writes a 16-bit mono PCM wav to `path` ──
 
 def _say_clip(text: str, speaker: str, path: Path) -> None:
-    subprocess.run(["say", "-v", SAY_VOICES.get(speaker, "Samantha"),
-                    "-o", str(path), f"--data-format=LEI16@{_RATE}", text], check=True)
+    subprocess.run(["say", "-v", SAY_VOICES.get(speaker, "Samantha"), "-o", str(path),
+                    f"--data-format=LEI16@{_RATE}", _clean_for_speech(text)], check=True)
 
 
 def _eleven_pcm(text: str, speaker: str, api_key: str) -> bytes:
     vid = _env(f"ELEVEN_VOICE_{speaker.upper()}") or ELEVEN_VOICES.get(speaker, ELEVEN_VOICES["agent"])
     body = json.dumps({
-        "text": text,
+        "text": _clean_for_speech(text),
         "model_id": _env("ELEVEN_MODEL") or ELEVEN_MODEL,
         # mid stability + speaker boost reads as a natural, unhurried phone voice
         "voice_settings": {"stability": 0.45, "similarity_boost": 0.8,
