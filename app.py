@@ -173,4 +173,6 @@ with gr.Blocks(title="PayerLine") as demo:
 
 
 if __name__ == "__main__":
-    demo.queue(default_concurrency_limit=2).launch()
+    # HF Spaces proxies 0.0.0.0:7860 — binding to localhost isn't reachable there.
+    demo.queue(default_concurrency_limit=2).launch(
+        server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
